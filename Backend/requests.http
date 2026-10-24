@@ -52,3 +52,59 @@ Content-Type: application/json
 ### 10. ADMIN hits admin route (expect 200)
 GET {{base}}/api/admin/ping
 Authorization: Bearer {{loginAdmin.response.body.$.token}}
+
+### 11. Fixed-date slot (expect 201 the first time you send it)
+# @name slot1
+POST {{base}}/api/admin/slots
+Authorization: Bearer {{loginAdmin.response.body.$.token}}
+Content-Type: application/json
+
+{ "resource": "Court 1", "startTime": "2026-12-01T10:00:00.000Z", "endTime": "2026-12-01T11:00:00.000Z" }
+
+### 12. Exact same body (expect 409)
+POST {{base}}/api/admin/slots
+Authorization: Bearer {{loginAdmin.response.body.$.token}}
+Content-Type: application/json
+
+{ "resource": "Court 1", "startTime": "2026-12-01T10:00:00.000Z", "endTime": "2026-12-01T11:00:00.000Z" }
+
+### 13. End before start (expect 400)
+POST {{base}}/api/admin/slots
+Authorization: Bearer {{loginAdmin.response.body.$.token}}
+Content-Type: application/json
+
+{ "resource": "Court 1", "startTime": "{{$datetime iso8601 2 d}}", "endTime": "{{$datetime iso8601 1 d}}" }
+
+### 14. Bulk with fixed dates (first time: created 8)
+POST {{base}}/api/admin/slots/bulk
+Authorization: Bearer {{loginAdmin.response.body.$.token}}
+Content-Type: application/json
+
+{ "resource": "Court 2", "from": "2026-12-02T09:00:00.000Z", "to": "2026-12-02T13:00:00.000Z", "slotMinutes": 30 }
+
+### 15. USER tries to create a slot (expect 403)
+POST {{base}}/api/admin/slots
+Authorization: Bearer {{loginUser.response.body.$.token}}
+Content-Type: application/json
+
+{ "resource": "Court 1", "startTime": "{{$datetime iso8601 3 d}}", "endTime": "{{$datetime iso8601 73 h}}" }
+
+### 16. USER lists slots, page 1 (expect 200, no heldBy/bookedBy fields)
+GET {{base}}/api/slots?limit=5&page=1
+Authorization: Bearer {{loginUser.response.body.$.token}}
+
+### 17. Filter by resource (expect only Court 2)
+GET {{base}}/api/slots?resource=Court 2
+Authorization: Bearer {{loginUser.response.body.$.token}}
+
+### 18. Bad query (expect 400)
+GET {{base}}/api/slots?limit=500
+Authorization: Bearer {{loginUser.response.body.$.token}}
+
+### 19. Delete the slot from #11 (expect 204)
+DELETE {{base}}/api/admin/slots/{{slot1.response.body.$.slot._id}}
+Authorization: Bearer {{loginAdmin.response.body.$.token}}
+
+### 20. Delete it again (expect 404)
+DELETE {{base}}/api/admin/slots/{{slot1.response.body.$.slot._id}}
+Authorization: Bearer {{loginAdmin.response.body.$.token}}
