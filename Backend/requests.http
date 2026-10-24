@@ -108,3 +108,59 @@ Authorization: Bearer {{loginAdmin.response.body.$.token}}
 ### 20. Delete it again (expect 404)
 DELETE {{base}}/api/admin/slots/{{slot1.response.body.$.slot._id}}
 Authorization: Bearer {{loginAdmin.response.body.$.token}}
+
+### 21. Get a slot id
+# @name slotList
+GET {{base}}/api/slots?resource=Court 2&limit=1
+Authorization: Bearer {{loginUser.response.body.$.token}}
+
+### 22. Book it (expect 201)
+POST {{base}}/api/bookings/naive
+Authorization: Bearer {{loginUser.response.body.$.token}}
+Content-Type: application/json
+
+{ "slotId": "{{slotList.response.body.$.items[0]._id}}" }
+
+### 23. Book the same slot again (expect 409; one at a time, naive code works)
+POST {{base}}/api/bookings/naive
+Authorization: Bearer {{loginUser.response.body.$.token}}
+Content-Type: application/json
+
+{ "slotId": "{{slotList.response.body.$.items[0]._id}}" }
+
+### 24. Bad id (expect 400)
+POST {{base}}/api/bookings/naive
+Authorization: Bearer {{loginUser.response.body.$.token}}
+Content-Type: application/json
+
+{ "slotId": "abc" }
+
+### 25. No token (expect 401)
+POST {{base}}/api/bookings/naive
+Content-Type: application/json
+
+{ "slotId": "{{slotList.response.body.$.items[0]._id}}" }
+
+
+### 26. Find an available slot
+# @name freshSlot
+GET {{base}}/api/slots?resource=Court 2&status=AVAILABLE&limit=1
+Authorization: Bearer {{loginUser.response.body.$.token}}
+
+### 27. Book it (expect 201)
+POST {{base}}/api/bookings
+Authorization: Bearer {{loginUser.response.body.$.token}}
+Content-Type: application/json
+
+{ "slotId": "{{freshSlot.response.body.$.items[0]._id}}" }
+
+### 28. Book it again (expect 409)
+POST {{base}}/api/bookings
+Authorization: Bearer {{loginUser.response.body.$.token}}
+Content-Type: application/json
+
+{ "slotId": "{{freshSlot.response.body.$.items[0]._id}}" }
+
+### 29. My bookings (expect 200, slot details included)
+GET {{base}}/api/bookings/me
+Authorization: Bearer {{loginUser.response.body.$.token}}

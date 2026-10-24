@@ -1,5 +1,5 @@
 import dotenv from "dotenv";
-dotenv.config();
+dotenv.config({ quiet: true });
 
 const required = ["MONGO_URI", "REDIS_URL", "JWT_SECRET"];
 for (const key of required) {
