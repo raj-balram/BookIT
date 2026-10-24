@@ -1,0 +1,54 @@
+@base = http://localhost:5000
+
+### 1. Register (expect 201)
+POST {{base}}/api/auth/register
+Content-Type: application/json
+
+{ "name": "Balram", "email": "user@test.com", "password": "Password123" }
+
+### 2. Register again (expect 409)
+POST {{base}}/api/auth/register
+Content-Type: application/json
+
+{ "name": "Balram", "email": "user@test.com", "password": "Password123" }
+
+### 3. Bad input (expect 400 with a field list)
+POST {{base}}/api/auth/register
+Content-Type: application/json
+
+{ "name": "B", "email": "nope", "password": "123" }
+
+### 4. Wrong password (expect 401)
+POST {{base}}/api/auth/login
+Content-Type: application/json
+
+{ "email": "user@test.com", "password": "WrongPass1" }
+
+### 5. User login (expect 200 + token)
+# @name loginUser
+POST {{base}}/api/auth/login
+Content-Type: application/json
+
+{ "email": "user@test.com", "password": "Password123" }
+
+### 6. Me (expect 200)
+GET {{base}}/api/auth/me
+Authorization: Bearer {{loginUser.response.body.$.token}}
+
+### 7. USER hits admin route (expect 403)
+GET {{base}}/api/admin/ping
+Authorization: Bearer {{loginUser.response.body.$.token}}
+
+### 8. No token (expect 401)
+GET {{base}}/api/admin/ping
+
+### 9. Admin login (expect 200 + token)
+# @name loginAdmin
+POST {{base}}/api/auth/login
+Content-Type: application/json
+
+{ "email": "admin@bookit.local", "password": "Admin@12345" }
+
+### 10. ADMIN hits admin route (expect 200)
+GET {{base}}/api/admin/ping
+Authorization: Bearer {{loginAdmin.response.body.$.token}}
