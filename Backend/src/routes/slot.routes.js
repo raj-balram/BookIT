@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { listSlots, getSlot } from "../controllers/slot.controller.js";
+import { listSlots, getSlot, myHolds } from "../controllers/slot.controller.js";
 import { hold, release } from "../controllers/hold.controller.js";
 import { requireAuth } from "../middleware/auth.js";
 import { validateQuery } from "../middleware/validate.js";
@@ -13,6 +13,9 @@ const holdLimiter = rateLimit({ name: "hold", ...LIMITS.hold, key: (req) => req.
 
 router.use(requireAuth);
 router.get("/", validateQuery(listSlotsQuery), listSlots);
+router.get("/", validateQuery(listSlotsQuery), listSlots);
+router.get("/holds/me", myHolds); // must stay above "/:id"
+router.get("/:id", getSlot);
 router.get("/:id", getSlot);
 router.post("/:id/hold", holdLimiter, hold);
 router.delete("/:id/hold", holdLimiter, release);

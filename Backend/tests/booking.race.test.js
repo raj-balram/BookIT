@@ -368,3 +368,17 @@ test("losing a race does not leak hold quota", async () => {
   // if the 5 failed attempts had kept their seats, these would hit the cap
   for (const s of free) expect((await hold(s, loser.token)).status).toBe(200);
 });
+
+test("my holds endpoint lists only my active holds and hides owner ids", async () => {
+  const a = await newUser();
+  const b = await newUser();
+  const slots = await makeSlots(2);
+  await hold(slots[0], a.token);
+  await hold(slots[1], b.token);
+
+  const res = await auth(request(server).get("/api/slots/holds/me"), a.token);
+  expect(res.status).toBe(200);
+  expect(res.body.items).toHaveLength(1);
+  expect(res.body.items[0]._id).toBe(slots[0]._id.toString());
+  expect(res.body.items[0].heldBy).toBeUndefined();
+});

@@ -72,3 +72,14 @@ export async function deleteSlot(id) {
   if (!exists) throw new AppError(404, "Slot not found");
   throw new AppError(409, "Only AVAILABLE slots can be deleted");
 }
+
+export async function listMyHolds(userId) {
+  return Slot.find({
+    heldBy: userId,
+    status: SLOT_STATUS.HELD,
+    holdExpiresAt: { $gt: new Date() },
+  })
+    .select(PUBLIC_FIELDS)
+    .sort({ holdExpiresAt: 1 })
+    .lean();
+}

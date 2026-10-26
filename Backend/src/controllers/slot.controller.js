@@ -22,3 +22,7 @@ export async function deleteSlot(req, res) {
   await slotService.deleteSlot(req.params.id);
   res.status(204).send();
 }
+
+export async function myHolds(req, res) {
+  res.json({ items: await slotService.listMyHolds(req.user._id) });
+}

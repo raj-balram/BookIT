@@ -18,7 +18,15 @@ const app = express();
 if (process.env.TRUST_PROXY) app.set("trust proxy", Number(process.env.TRUST_PROXY));
 
 app.use(helmet());
-app.use(cors());
+const allowedOrigins = (process.env.FRONTEND_URL || "http://localhost:5173")
+  .split(",")
+  .map((s) => s.trim());
+app.use(
+  cors({
+    origin: allowedOrigins,
+    exposedHeaders: ["Retry-After", "RateLimit-Remaining", "Idempotent-Replayed"],
+  })
+);
 app.use(express.json({ limit: "10kb" }));
 
 app.get("/health", async (req, res) => {
