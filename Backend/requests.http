@@ -198,3 +198,24 @@ Content-Type: application/json
 ### 37. My bookings (expect the booking with slot details)
 GET {{base}}/api/bookings/me
 Authorization: Bearer {{loginUser.response.body.$.token}}
+
+### 38. List 4 available slots
+# @name four
+GET {{base}}/api/slots?resource=Court 2&status=AVAILABLE&limit=4
+Authorization: Bearer {{loginUser.response.body.$.token}}
+
+### 39. Hold slot 1 (expect 200)
+POST {{base}}/api/slots/{{four.response.body.$.items[0]._id}}/hold
+Authorization: Bearer {{loginUser.response.body.$.token}}
+
+### 40. Hold slot 2 (expect 200)
+POST {{base}}/api/slots/{{four.response.body.$.items[1]._id}}/hold
+Authorization: Bearer {{loginUser.response.body.$.token}}
+
+### 41. Hold slot 3 (expect 200)
+POST {{base}}/api/slots/{{four.response.body.$.items[2]._id}}/hold
+Authorization: Bearer {{loginUser.response.body.$.token}}
+
+### 42. Hold slot 4 (expect 429: "You can hold at most 3 slots at once")
+POST {{base}}/api/slots/{{four.response.body.$.items[3]._id}}/hold
+Authorization: Bearer {{loginUser.response.body.$.token}}

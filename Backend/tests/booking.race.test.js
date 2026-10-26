@@ -287,3 +287,84 @@ test("idempotency: two users can use the same key string without interfering", a
   expect(ra.headers["idempotent-replayed"]).toBeUndefined();
   expect(rb.headers["idempotent-replayed"]).toBeUndefined();
 });
+
+
+// ---------- hold quota (max 3 active holds per user) ----------
+
+async function newUser() {
+  const n = ++seq;
+  const user = await User.create({ name: `Solo ${n}`, email: `solo-${n}@race.test`, passwordHash: "x" });
+  return { user, token: tokenFor(user) };
+}
+
+async function makeSlots(count) {
+  const n = ++seq;
+  const admin = await User.create({
+    name: "Admin", email: `admin-m${n}@race.test`, passwordHash: "x", role: "ADMIN",
+  });
+  const base = Date.now() + 48 * 3600 * 1000;
+  return Slot.insertMany(
+    Array.from({ length: count }, (_, i) => ({
+      resource: `Multi-${n}`,
+      startTime: new Date(base + i * 3600 * 1000),
+      endTime: new Date(base + (i + 1) * 3600 * 1000),
+      price: 10,
+      createdBy: admin._id,
+    }))
+  );
+}
+
+test("hold cap: a user can hold at most 3 slots, re-holding is free, releasing frees a seat", async () => {
+  const { token } = await newUser();
+  const slots = await makeSlots(5);
+
+  for (let i = 0; i < 3; i++) expect((await hold(slots[i], token)).status).toBe(200);
+
+  const fourth = await hold(slots[3], token);
+  expect(fourth.status).toBe(429);
+  expect((await Slot.findById(slots[3]._id)).status).toBe("AVAILABLE");
+
+  expect((await hold(slots[0], token)).status).toBe(200); // re-hold: not counted twice
+
+  const del = await auth(request(server).delete(`/api/slots/${slots[0]._id}/hold`), token);
+  expect(del.status).toBe(204);
+  expect((await hold(slots[3], token)).status).toBe(200);
+});
+
+test("hold cap holds under concurrency: 10 parallel holds on different slots -> exactly 3", async () => {
+  const { user, token } = await newUser();
+  const slots = await makeSlots(10);
+
+  const responses = await Promise.all(slots.map((s) => hold(s, token)));
+  const ok = responses.filter((r) => r.status === 200).length;
+  const limited = responses.filter((r) => r.status === 429).length;
+  console.log(`HOLD CAP: ${ok} holds allowed, ${limited} rejected with 429`);
+
+  expect(ok).toBe(3);
+  expect(limited).toBe(7);
+  expect(await Slot.countDocuments({ heldBy: user._id, status: "HELD" })).toBe(3);
+});
+
+test("confirming a booking frees a hold seat", async () => {
+  const { token } = await newUser();
+  const slots = await makeSlots(4);
+
+  for (let i = 0; i < 3; i++) await hold(slots[i], token);
+  expect((await hold(slots[3], token)).status).toBe(429);
+
+  expect((await confirm(slots[0], token)).status).toBe(201);
+  expect((await hold(slots[3], token)).status).toBe(200);
+});
+
+test("losing a race does not leak hold quota", async () => {
+  const winner = await newUser();
+  const loser = await newUser();
+  const contested = (await makeSlots(1))[0];
+  const free = await makeSlots(3);
+
+  expect((await hold(contested, winner.token)).status).toBe(200);
+  for (let i = 0; i < 5; i++) expect((await hold(contested, loser.token)).status).toBe(409);
+
+  // if the 5 failed attempts had kept their seats, these would hit the cap
+  for (const s of free) expect((await hold(s, loser.token)).status).toBe(200);
+});

@@ -3,6 +3,7 @@ import { Slot, SLOT_STATUS } from "../models/Slot.js";
 import { Booking } from "../models/Booking.js";
 import { Payment } from "../models/Payment.js";
 import { AppError } from "../utils/AppError.js";
+import { releaseHoldQuota } from "./holdQuota.service.js";
 
 export async function confirmBooking(slotId, userId) {
   const session = await mongoose.startSession();
@@ -34,6 +35,8 @@ export async function confirmBooking(slotId, userId) {
       );
       booking = created;
     });
+
+    await releaseHoldQuota(userId, slotId); // a confirmed slot no longer counts as a hold
 
     return booking;
   } finally {
