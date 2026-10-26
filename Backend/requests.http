@@ -164,3 +164,48 @@ Content-Type: application/json
 ### 29. My bookings (expect 200, slot details included)
 GET {{base}}/api/bookings/me
 Authorization: Bearer {{loginUser.response.body.$.token}}
+
+
+### 30. Register a second user (409 if you already did)
+POST {{base}}/api/auth/register
+Content-Type: application/json
+
+{ "name": "Second", "email": "user2@test.com", "password": "Password123" }
+
+### 31. Login second user
+# @name loginUser2
+POST {{base}}/api/auth/login
+Content-Type: application/json
+
+{ "email": "user2@test.com", "password": "Password123" }
+
+### 32. Find an available slot
+# @name s
+GET {{base}}/api/slots?resource=Court 2&status=AVAILABLE&limit=1
+Authorization: Bearer {{loginUser.response.body.$.token}}
+
+### 33. User 1 holds it (expect 200 with holdExpiresAt about 5 minutes ahead)
+POST {{base}}/api/slots/{{s.response.body.$.items[0]._id}}/hold
+Authorization: Bearer {{loginUser.response.body.$.token}}
+
+### 34. User 2 tries to hold it (expect 409)
+POST {{base}}/api/slots/{{s.response.body.$.items[0]._id}}/hold
+Authorization: Bearer {{loginUser2.response.body.$.token}}
+
+### 35. User 2 tries to confirm user 1's hold (expect 409)
+POST {{base}}/api/bookings
+Authorization: Bearer {{loginUser2.response.body.$.token}}
+Content-Type: application/json
+
+{ "slotId": "{{s.response.body.$.items[0]._id}}" }
+
+### 36. User 1 confirms (expect 201)
+POST {{base}}/api/bookings
+Authorization: Bearer {{loginUser.response.body.$.token}}
+Content-Type: application/json
+
+{ "slotId": "{{s.response.body.$.items[0]._id}}" }
+
+### 37. My bookings (expect the booking with slot details)
+GET {{base}}/api/bookings/me
+Authorization: Bearer {{loginUser.response.body.$.token}}

@@ -8,6 +8,7 @@ export const createSlotSchema = z
     resource,
     startTime: futureDate,
     endTime: z.coerce.date(),
+    price: z.coerce.number().min(0).max(100000).default(0),
   })
   .refine((v) => v.endTime > v.startTime, {
     message: "endTime must be after startTime",
@@ -20,6 +21,7 @@ export const bulkSlotSchema = z
     from: futureDate,
     to: z.coerce.date(),
     slotMinutes: z.coerce.number().int().min(5).max(240),
+    price: z.coerce.number().min(0).max(100000).default(0),
   })
   .refine((v) => v.to > v.from, { message: "to must be after from", path: ["to"] });
 

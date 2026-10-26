@@ -4,12 +4,12 @@ export const SLOT_STATUS = { AVAILABLE: "AVAILABLE", HELD: "HELD", BOOKED: "BOOK
 
 const slotSchema = new mongoose.Schema(
   {
-    resource: { type: String, required: true, trim: true }, // e.g. "Court 1", "Dr. Rao"
+    resource: { type: String, required: true, trim: true },
     startTime: { type: Date, required: true },
     endTime: { type: Date, required: true },
+    price: { type: Number, default: 0, min: 0 },
     status: { type: String, enum: Object.values(SLOT_STATUS), default: SLOT_STATUS.AVAILABLE },
 
-    // used from Phase 3 onwards
     heldBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
     holdExpiresAt: { type: Date, default: null },
     bookedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
@@ -19,9 +19,9 @@ const slotSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// A resource cannot have two slots starting at the same time (DB-level guarantee)
 slotSchema.index({ resource: 1, startTime: 1 }, { unique: true });
-// Supports the main listing query: filter by status, sort by time
 slotSchema.index({ status: 1, startTime: 1 });
+// lets the cleanup job find expired holds without scanning every slot
+slotSchema.index({ holdExpiresAt: 1 }, { partialFilterExpression: { status: SLOT_STATUS.HELD } });
 
 export const Slot = mongoose.model("Slot", slotSchema);

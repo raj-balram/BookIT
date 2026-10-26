@@ -9,7 +9,7 @@ export async function createSlot(data, adminId) {
   return Slot.create({ ...data, createdBy: adminId });
 }
 
-export async function createSlotsBulk({ resource, from, to, slotMinutes }, adminId) {
+export async function createSlotsBulk({ resource, from, to, slotMinutes, price }, adminId)  {
   const stepMs = slotMinutes * 60 * 1000;
   const count = Math.floor((to.getTime() - from.getTime()) / stepMs);
 
@@ -24,7 +24,7 @@ export async function createSlotsBulk({ resource, from, to, slotMinutes }, admin
       updateOne: {
         filter: { resource, startTime },
         // only inserts if it doesn't exist, so re-running never duplicates or overwrites
-        update: { $setOnInsert: { endTime, status: SLOT_STATUS.AVAILABLE, createdBy: adminId } },
+        update: { $setOnInsert: { endTime, price, status: SLOT_STATUS.AVAILABLE, createdBy: adminId } },
         upsert: true,
       },
     });

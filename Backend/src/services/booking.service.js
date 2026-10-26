@@ -1,35 +1,43 @@
+import mongoose from "mongoose";
 import { Slot, SLOT_STATUS } from "../models/Slot.js";
 import { Booking } from "../models/Booking.js";
+import { Payment } from "../models/Payment.js";
 import { AppError } from "../utils/AppError.js";
 
-export async function bookSlot(slotId, userId) {
-  const now = new Date();
-
-  // ONE atomic operation: "if the slot is still AVAILABLE (and in the future), mark it BOOKED".
-  // The check and the write can't be separated, so only one concurrent request matches.
-  const slot = await Slot.findOneAndUpdate(
-    { _id: slotId, status: SLOT_STATUS.AVAILABLE, startTime: { $gt: now } },
-    { $set: { status: SLOT_STATUS.BOOKED, bookedBy: userId } },
-    { new: true }
-  );
-
-  if (!slot) {
-    // we lost the race (or the slot is invalid): work out which error to return
-    const current = await Slot.findById(slotId).select("startTime").lean();
-    if (!current) throw new AppError(404, "Slot not found");
-    if (current.startTime <= now) throw new AppError(400, "Slot has already started");
-    throw new AppError(409, "Slot is no longer available");
-  }
-
+export async function confirmBooking(slotId, userId) {
+  const session = await mongoose.startSession();
   try {
-    return await Booking.create({ user: userId, slot: slot._id });
-  } catch (err) {
-    // compensate: don't leave the slot BOOKED with no booking record
-    await Slot.updateOne(
-      { _id: slot._id, status: SLOT_STATUS.BOOKED, bookedBy: userId },
-      { $set: { status: SLOT_STATUS.AVAILABLE, bookedBy: null } }
-    );
-    throw err;
+    let booking;
+
+    // withTransaction retries automatically on transient errors (e.g. write conflicts),
+    // so everything inside must only touch the database
+    await session.withTransaction(async () => {
+      const now = new Date();
+
+      // atomic ownership + expiry check: you can only confirm YOUR hold, and only while it's valid
+      const slot = await Slot.findOneAndUpdate(
+        { _id: slotId, status: SLOT_STATUS.HELD, heldBy: userId, holdExpiresAt: { $gt: now } },
+        { $set: { status: SLOT_STATUS.BOOKED, bookedBy: userId, heldBy: null, holdExpiresAt: null } },
+        { session, returnDocument: "after" }
+      );
+
+      if (!slot) {
+        const exists = await Slot.exists({ _id: slotId }).session(session);
+        if (!exists) throw new AppError(404, "Slot not found");
+        throw new AppError(409, "No active hold for this slot (it may have expired)");
+      }
+
+      const [created] = await Booking.create([{ user: userId, slot: slot._id }], { session });
+      await Payment.create(
+        [{ booking: created._id, user: userId, amount: slot.price ?? 0, status: "SUCCEEDED" }],
+        { session }
+      );
+      booking = created;
+    });
+
+    return booking;
+  } finally {
+    await session.endSession();
   }
 }
 
@@ -40,7 +48,7 @@ export async function listMyBookings(userId, { page, limit }) {
       .sort({ createdAt: -1, _id: -1 })
       .skip((page - 1) * limit)
       .limit(limit)
-      .populate("slot", "resource startTime endTime")
+      .populate("slot", "resource startTime endTime price")
       .lean(),
     Booking.countDocuments(filter),
   ]);

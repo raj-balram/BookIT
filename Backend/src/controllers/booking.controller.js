@@ -6,8 +6,8 @@ export async function bookNaive(req, res) {
   res.status(201).json({ booking });
 }
 
-export async function bookSlot(req, res) {
-  const booking = await bookingService.bookSlot(req.body.slotId, req.user._id);
+export async function confirmBooking(req, res) {
+  const booking = await bookingService.confirmBooking(req.body.slotId, req.user._id);
   res.status(201).json({ booking });
 }
 
