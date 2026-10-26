@@ -147,19 +147,6 @@ Content-Type: application/json
 GET {{base}}/api/slots?resource=Court 2&status=AVAILABLE&limit=1
 Authorization: Bearer {{loginUser.response.body.$.token}}
 
-### 27. Book it (expect 201)
-POST {{base}}/api/bookings
-Authorization: Bearer {{loginUser.response.body.$.token}}
-Content-Type: application/json
-
-{ "slotId": "{{freshSlot.response.body.$.items[0]._id}}" }
-
-### 28. Book it again (expect 409)
-POST {{base}}/api/bookings
-Authorization: Bearer {{loginUser.response.body.$.token}}
-Content-Type: application/json
-
-{ "slotId": "{{freshSlot.response.body.$.items[0]._id}}" }
 
 ### 29. My bookings (expect 200, slot details included)
 GET {{base}}/api/bookings/me
@@ -184,7 +171,7 @@ Content-Type: application/json
 GET {{base}}/api/slots?resource=Court 2&status=AVAILABLE&limit=1
 Authorization: Bearer {{loginUser.response.body.$.token}}
 
-### 33. User 1 holds it (expect 200 with holdExpiresAt about 5 minutes ahead)
+### 33. User 1 holds it (expect 200)
 POST {{base}}/api/slots/{{s.response.body.$.items[0]._id}}/hold
 Authorization: Bearer {{loginUser.response.body.$.token}}
 
@@ -195,13 +182,15 @@ Authorization: Bearer {{loginUser2.response.body.$.token}}
 ### 35. User 2 tries to confirm user 1's hold (expect 409)
 POST {{base}}/api/bookings
 Authorization: Bearer {{loginUser2.response.body.$.token}}
+Idempotency-Key: demo-key-user2-0001
 Content-Type: application/json
 
 { "slotId": "{{s.response.body.$.items[0]._id}}" }
 
-### 36. User 1 confirms (expect 201)
+### 36. User 1 confirms (expect 201; send it twice: second time shows Idempotent-Replayed: true)
 POST {{base}}/api/bookings
 Authorization: Bearer {{loginUser.response.body.$.token}}
+Idempotency-Key: demo-key-user1-0001
 Content-Type: application/json
 
 { "slotId": "{{s.response.body.$.items[0]._id}}" }

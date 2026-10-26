@@ -73,8 +73,13 @@ async function setup(userCount = CONCURRENCY) {
 
 const auth = (req, token) => req.set("Authorization", `Bearer ${token}`);
 const hold = (slot, token) => auth(request(server).post(`/api/slots/${slot._id}/hold`), token);
-const confirm = (slot, token) =>
-  auth(request(server).post("/api/bookings"), token).send({ slotId: slot._id.toString() });
+let keySeq = 0;
+const newKey = () => `test-key-${Date.now()}-${++keySeq}`;
+
+const confirm = (slot, token, key = newKey()) =>
+  auth(request(server).post("/api/bookings"), token)
+    .set("Idempotency-Key", key)
+    .send({ slotId: slot._id.toString() });
 const expireHold = (slot) =>
   Slot.updateOne({ _id: slot._id }, { $set: { holdExpiresAt: new Date(Date.now() - 1000) } });
 
@@ -193,7 +198,8 @@ test("transaction rolls back everything when the payment step fails", async () =
   await hold(slot, tokens[0]);
 
   const spy = jest.spyOn(Payment, "create").mockRejectedValueOnce(new Error("payment gateway down"));
-  const res = await confirm(slot, tokens[0]);
+  const key = newKey();
+  const res = await confirm(slot, tokens[0], key);
   spy.mockRestore();
 
   expect(res.status).toBe(500);
@@ -203,6 +209,81 @@ test("transaction rolls back everything when the payment step fails", async () =
   expect(fresh.status).toBe("HELD");
   expect(fresh.heldBy.toString()).toBe(users[0]._id.toString());
 
-  // and a retry now succeeds
-  expect((await confirm(slot, tokens[0])).status).toBe(201);
+  // same key as the failed attempt: 5xx results are not cached, so the retry runs for real
+  expect((await confirm(slot, tokens[0], key)).status).toBe(201);
+});
+
+
+test("idempotency: a request without the header is rejected", async () => {
+  const { slot, tokens } = await setup(1);
+  await hold(slot, tokens[0]);
+  const res = await auth(request(server).post("/api/bookings"), tokens[0]).send({
+    slotId: slot._id.toString(),
+  });
+  expect(res.status).toBe(400);
+});
+
+test("idempotency: retrying with the same key replays the original response", async () => {
+  const { slot, tokens } = await setup(1);
+  await hold(slot, tokens[0]);
+  const key = newKey();
+
+  const first = await confirm(slot, tokens[0], key);
+  const second = await confirm(slot, tokens[0], key);
+
+  expect(first.status).toBe(201);
+  expect(second.status).toBe(201); // NOT 409: the original result is replayed
+  expect(second.body).toEqual(first.body);
+  expect(second.headers["idempotent-replayed"]).toBe("true");
+  expect(first.headers["idempotent-replayed"]).toBeUndefined();
+
+  expect(await Booking.countDocuments({ slot: slot._id })).toBe(1);
+  expect(await Payment.countDocuments({ booking: first.body.booking._id })).toBe(1);
+});
+
+test("idempotency: a double-click (10 parallel requests, same key) creates one booking", async () => {
+  const { slot, tokens } = await setup(1);
+  await hold(slot, tokens[0]);
+  const key = newKey();
+
+  const responses = await Promise.all(
+    Array.from({ length: 10 }, () => confirm(slot, tokens[0], key))
+  );
+
+  const originals = responses.filter(
+    (r) => r.status === 201 && !r.headers["idempotent-replayed"]
+  );
+  expect(originals).toHaveLength(1); // exactly one request actually executed
+  for (const r of responses) expect([201, 409]).toContain(r.status); // others: replay or "in progress"
+  expect(await Booking.countDocuments({ slot: slot._id })).toBe(1);
+});
+
+test("idempotency: the same key with a different request is rejected with 422", async () => {
+  const { slot, tokens } = await setup(1);
+  await hold(slot, tokens[0]);
+  const key = newKey();
+
+  expect((await confirm(slot, tokens[0], key)).status).toBe(201);
+
+  const other = await auth(request(server).post("/api/bookings"), tokens[0])
+    .set("Idempotency-Key", key)
+    .send({ slotId: new mongoose.Types.ObjectId().toString() });
+  expect(other.status).toBe(422);
+});
+
+test("idempotency: two users can use the same key string without interfering", async () => {
+  const a = await setup(1);
+  const b = await setup(1);
+  await hold(a.slot, a.tokens[0]);
+  await hold(b.slot, b.tokens[0]);
+  const key = newKey();
+
+  const [ra, rb] = await Promise.all([
+    confirm(a.slot, a.tokens[0], key),
+    confirm(b.slot, b.tokens[0], key),
+  ]);
+  expect(ra.status).toBe(201);
+  expect(rb.status).toBe(201);
+  expect(ra.headers["idempotent-replayed"]).toBeUndefined();
+  expect(rb.headers["idempotent-replayed"]).toBeUndefined();
 });
