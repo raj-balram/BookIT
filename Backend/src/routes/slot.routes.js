@@ -13,9 +13,7 @@ const holdLimiter = rateLimit({ name: "hold", ...LIMITS.hold, key: (req) => req.
 
 router.use(requireAuth);
 router.get("/", validateQuery(listSlotsQuery), listSlots);
-router.get("/", validateQuery(listSlotsQuery), listSlots);
 router.get("/holds/me", myHolds); // must stay above "/:id"
-router.get("/:id", getSlot);
 router.get("/:id", getSlot);
 router.post("/:id/hold", holdLimiter, hold);
 router.delete("/:id/hold", holdLimiter, release);

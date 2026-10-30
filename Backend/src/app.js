@@ -4,7 +4,7 @@ import cors from "cors";
 import mongoose from "mongoose";
 import { redis } from "./config/redis.js";
 import { rateLimit } from "./middleware/rateLimit.js";
-import { LIMITS } from "./config/limits.js";
+import { LIMITS, LOAD_MODE } from "./config/limits.js";
 import authRoutes from "./routes/auth.routes.js";
 import adminRoutes from "./routes/admin.routes.js";
 import slotRoutes from "./routes/slot.routes.js";
@@ -39,7 +39,7 @@ app.get("/health", async (req, res) => {
 });
 
 // safety net for everything below (tests send hundreds of requests from one IP, so skip them)
-app.use(rateLimit({ name: "global", ...LIMITS.global, skip: () => process.env.NODE_ENV === "test" }));
+app.use(rateLimit({ name: "global", ...LIMITS.global, skip: () => process.env.NODE_ENV === "test" || LOAD_MODE }));
 
 app.use("/api/auth", authRoutes);
 app.use("/api/admin", adminRoutes);
