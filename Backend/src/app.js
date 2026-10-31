@@ -10,6 +10,7 @@ import adminRoutes from "./routes/admin.routes.js";
 import slotRoutes from "./routes/slot.routes.js";
 import bookingRoutes from "./routes/booking.routes.js";
 import { notFound, errorHandler } from "./middleware/errorHandler.js";
+import { requestLogger } from "./middleware/requestLogger.js";
 
 const app = express();
 
@@ -28,6 +29,7 @@ app.use(
   })
 );
 app.use(express.json({ limit: "10kb" }));
+if (process.env.NODE_ENV !== "test" && !LOAD_MODE) app.use(requestLogger);
 
 app.get("/health", async (req, res) => {
   const mongoOk = mongoose.connection.readyState === 1;
