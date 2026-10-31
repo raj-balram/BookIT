@@ -1,5 +1,7 @@
 import { jest } from "@jest/globals";
 import mongoose from "mongoose";
+import dotenv from "dotenv";
+dotenv.config({ quiet: true });
 import jwt from "jsonwebtoken";
 import request from "supertest";
 import { MongoMemoryReplSet } from "mongodb-memory-server";

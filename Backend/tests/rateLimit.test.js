@@ -1,5 +1,7 @@
 import express from "express";
 import request from "supertest";
+import dotenv from "dotenv";
+dotenv.config({ quiet: true });
 
 process.env.REDIS_URL ??= "redis://localhost:6379";
 process.env.JWT_SECRET ??= "test-secret";
