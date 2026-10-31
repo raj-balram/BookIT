@@ -1,0 +1,48 @@
+name: bookit-prod
+
+services:
+  mongo:
+    image: mongo:7
+    command: ["--replSet", "rs0", "--bind_ip_all"]
+    volumes:
+      - mongo-prod-data:/data/db
+    healthcheck:
+      # healthy only once the replica set is initialised; the member host is the
+      # service name, so OTHER containers can reach it (localhost would only work inside this one)
+      test:
+        - CMD
+        - mongosh
+        - --quiet
+        - --eval
+        - "try { if (rs.status().ok) quit(0) } catch (e) { rs.initiate({_id:'rs0',members:[{_id:0,host:'mongo:27017'}]}) } quit(1)"
+      interval: 5s
+      timeout: 10s
+      retries: 20
+
+  redis:
+    image: redis:7
+
+  backend:
+    build: ./Backend
+    environment:
+      NODE_ENV: production
+      PORT: 5000
+      MONGO_URI: mongodb://mongo:27017/bookit?replicaSet=rs0
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET:?create a .env file next to this compose file containing JWT_SECRET=...}
+      TRUST_PROXY: "1"
+    depends_on:
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+  frontend:
+    build: ./Frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
+
+volumes:
+  mongo-prod-data:

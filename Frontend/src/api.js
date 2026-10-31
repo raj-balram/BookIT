@@ -1,4 +1,6 @@
 const TOKEN_KEY = "bookit_token";
+// empty in dev (the Vite proxy handles /api); the backend's public URL when deployed on another domain
+const API_BASE = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
 
 export const tokenStore = {
   get: () => localStorage.getItem(TOKEN_KEY),
@@ -26,7 +28,7 @@ async function request(path, { method = "GET", body, headers = {}, auth = true }
 
   let res;
   try {
-    res = await fetch(`/api${path}`, {
+      res = await fetch(`${API_BASE}/api${path}`,  {
       method,
       headers: h,
       body: body !== undefined ? JSON.stringify(body) : undefined,
